@@ -1,0 +1,257 @@
+// import * as posenet from "@tensorflow-models/posenet";
+
+const pointRadius = 3;
+
+export const config = {
+  videoWidth: 900,
+  videoHeight: 700,
+  flipHorizontal: true,
+  algorithm: "single-pose",
+  showVideo: true,
+  showSkeleton: true,
+  showPoints: true,
+  minPoseConfidence: 0.1,
+  minPartConfidence: 0.5,
+  maxPoseDetections: 2,
+  nmsRadius: 20,
+  outputStride: 16,
+  imageScaleFactor: 0.5,
+  skeletonColor: "#ffadea",
+  skeletonLineWidth: 6,
+  loadingText: "Loading...please be patient...",
+};
+
+function toTuple({ x, y }) {
+  return [x, y];
+}
+
+export function drawKeyPoints(
+  keypoints,
+  minConfidence,
+  skeletonColor,
+  canvasContext,
+  scale = 1
+) {
+  console.log("context", canvasContext);
+  keypoints.forEach((keypoint) => {
+    if (keypoint.score >= minConfidence) {
+      const { x, y } = keypoint;
+      canvasContext.beginPath();
+      canvasContext.arc(x * scale, y * scale, pointRadius, 0, 2 * Math.PI);
+      canvasContext.fillStyle = skeletonColor;
+      canvasContext.fill();
+    }
+  });
+}
+
+function drawSegment(
+  [firstX, firstY],
+  [nextX, nextY],
+  color,
+  lineWidth,
+  scale,
+  canvasContext
+) {
+  console.log("xxxxxxxxxxxyyyyyyyyyyyyyyyy", [firstX, firstY]);
+  console.log("connnnnnnnnnn", canvasContext);
+  canvasContext.beginPath();
+  canvasContext.moveTo(firstX * scale, firstY * scale);
+  canvasContext.lineTo(nextX * scale, nextY * scale);
+  canvasContext.lineWidth = lineWidth;
+  canvasContext.strokeStyle = color;
+  canvasContext.stroke();
+  console.log("here");
+}
+
+// export function drawSkeleton(
+//   keypoints,
+//   minConfidence,
+//   color,
+//   lineWidth,
+//   canvasContext,
+//   scale = 1
+// ) {
+//   const adjacentKeyPoints = posenet.getAdjacentKeyPoints(
+//     keypoints,
+//     minConfidence
+//   );
+
+//   adjacentKeyPoints.forEach((keypoints) => {
+//     drawSegment(
+//       toTuple(keypoints[0].position),
+//       toTuple(keypoints[1].position),
+//       color,
+//       lineWidth,
+//       scale,
+//       canvasContext
+//     );
+//   });
+// }
+
+// export function drawKeyPoints(
+//   keypoints,
+//   minConfidence,
+//   skeletonColor,
+//   canvasContext,
+//   scale = 1
+// ) {
+//   console.log("context", canvasContext);
+//   keypoints.forEach((keypoint) => {
+//     if (keypoint.score >= minConfidence) {
+//       const { x, y } = keypoint.position;
+//       canvasContext.beginPath();
+//       canvasContext.arc(x * scale, y * scale, pointRadius, 0, 2 * Math.PI);
+//       canvasContext.fillStyle = skeletonColor;
+//       canvasContext.fill();
+//     }
+//   });
+// }
+
+// Define keypoint indices
+const KEYPOINT_DICT = {
+  nose: 0,
+  left_eye: 1,
+  right_eye: 2,
+  left_ear: 3,
+  right_ear: 4,
+  left_shoulder: 5,
+  right_shoulder: 6,
+  left_elbow: 7,
+  right_elbow: 8,
+  left_wrist: 9,
+  right_wrist: 10,
+  left_hip: 11,
+  right_hip: 12,
+  left_knee: 13,
+  right_knee: 14,
+  left_ankle: 15,
+  right_ankle: 16,
+};
+
+// Define keypoint edges and colors
+const KEYPOINT_EDGE_INDS_TO_COLOR = {
+  "0_1": "m",
+  "0_2": "c",
+  "1_3": "m",
+  "2_4": "c",
+  "0_5": "m",
+  "0_6": "c",
+  "5_7": "m",
+  "7_9": "m",
+  "6_8": "c",
+  "8_10": "c",
+  "5_6": "y",
+  "5_11": "m",
+  "6_12": "c",
+  "11_12": "y",
+  "11_13": "m",
+  "13_15": "m",
+  "12_14": "c",
+  "14_16": "c",
+};
+
+// Function to process keypoints for display
+function keypointsAndEdgesForDisplay(
+  keypointsWithScores,
+  height,
+  width,
+  keypointThreshold = 0.11
+) {
+  const keypointsAll = [];
+  const keypointEdgesAll = [];
+  const edgeColors = [];
+  console.log("keypointsWithScores", keypointsWithScores);
+  const numInstances = keypointsWithScores.length;
+
+  for (let idx = 0; idx < numInstances; idx++) {
+    const kptsX = keypointsWithScores[idx][0].map((kp) => kp[1]);
+    const kptsY = keypointsWithScores[idx][0].map((kp) => kp[0]);
+    const kptsScores = keypointsWithScores[idx][0].map((kp) => kp[2]);
+
+    const kptsAbsoluteXY = kptsX.map((x, i) => [width * x, height * kptsY[i]]);
+    const kptsAboveThresholdAbsolute = kptsAbsoluteXY.filter(
+      (_, i) => kptsScores[i] > keypointThreshold
+    );
+    keypointsAll.push(kptsAboveThresholdAbsolute);
+
+    Object.entries(KEYPOINT_EDGE_INDS_TO_COLOR).forEach(([key, color]) => {
+      const [startIdx, endIdx] = key.split("_").map(Number);
+
+      if (
+        kptsScores[startIdx] > keypointThreshold &&
+        kptsScores[endIdx] > keypointThreshold
+      ) {
+        const xStart = kptsAbsoluteXY[startIdx][0];
+        const yStart = kptsAbsoluteXY[startIdx][1];
+        const xEnd = kptsAbsoluteXY[endIdx][0];
+        const yEnd = kptsAbsoluteXY[endIdx][1];
+        const lineSeg = [
+          [xStart, yStart],
+          [xEnd, yEnd],
+        ];
+        keypointEdgesAll.push(lineSeg);
+        edgeColors.push(color);
+      }
+    });
+  }
+
+  const keypointsXY = keypointsAll.flat();
+  const edgesXY = keypointEdgesAll;
+  return { keypointsXY, edgesXY, edgeColors };
+}
+
+// Function to draw keypoints on an image
+export function drawPredictionOnCanvas(
+  canvas,
+  keypointsWithScores,
+  cropRegion = null
+) {
+  const ctx = canvas.current.getContext("2d");
+  const height = canvas.height;
+  const width = canvas.width;
+
+  ctx.clearRect(0, 0, width, height);
+
+  const { keypointsXY, edgesXY, edgeColors } = keypointsAndEdgesForDisplay(
+    keypointsWithScores,
+    height,
+    width
+  );
+
+  // Draw keypoints
+  ctx.fillStyle = "#FF1493"; // Pink color
+  keypointsXY.forEach(([x, y]) => {
+    ctx.beginPath();
+    ctx.arc(x, y, 4, 0, 2 * Math.PI);
+    ctx.fill();
+  });
+
+  // Draw skeleton edges
+  ctx.lineWidth = 2;
+  edgesXY.forEach((lineSeg, i) => {
+    ctx.strokeStyle = edgeColors[i];
+    ctx.beginPath();
+    ctx.moveTo(lineSeg[0][0], lineSeg[0][1]);
+    ctx.lineTo(lineSeg[1][0], lineSeg[1][1]);
+    ctx.stroke();
+  });
+
+  // Draw bounding box if cropRegion is provided
+  if (cropRegion) {
+    const { x_min, y_min, x_max, y_max } = cropRegion;
+    const xmin = Math.max(x_min * width, 0);
+    const ymin = Math.max(y_min * height, 0);
+    const recWidth = Math.min(x_max, 0.99) * width - xmin;
+    const recHeight = Math.min(y_max, 0.99) * height - ymin;
+
+    ctx.strokeStyle = "blue";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(xmin, ymin, recWidth, recHeight);
+  }
+}
+
+// Example usage:
+// (Assuming you have loaded an image and obtained keypoints and scores from MoveNet)
+// const image = new Image();
+// image.src = "path/to/your/image.jpg";
+// image.onload
