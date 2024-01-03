@@ -1,3 +1,4 @@
+import * as poseDetection from "@tensorflow-models/pose-detection";
 export const POINTS = {
   NOSE: 0,
   LEFT_EYE: 1,
@@ -47,81 +48,98 @@ export function drawPoint(ctx, x, y, r, color) {
   ctx.fill();
 }
 
-export function drawKeypoints(
-  keypoints,
-  minConfidence,
-  skeletonColor,
-  canvasContext,
-  scale = 1
-) {
-  //console.log("context", canvasContext);
-  keypoints.forEach((keypoint) => {
-    if (keypoint.score >= minConfidence) {
-      const { x, y } = keypoint;
-      canvasContext.beginPath();
-      canvasContext.arc(x * scale, y * scale, 5, 0, 2 * Math.PI);
-      canvasContext.fillStyle = skeletonColor;
-      canvasContext.fill();
-    }
-  });
+export function drawKeypoints(keypoint, ctx) {
+  const score = keypoint.score != null ? keypoint.score : 1;
+  const scoreThreshold = 0.4;
+
+  if (score >= scoreThreshold) {
+    const circle = new Path2D();
+    circle.arc(keypoint.x, keypoint.y, 2, 0, 2 * Math.PI);
+    ctx.fillStyle = "red";
+    ctx.fill(circle);
+    ctx.stroke(circle);
+  }
 }
 
-export function drawSkeleton(keypoints, minConfidence, ctx) {
+export function drawSkeleton(keypoints, ctx) {
+  const color = "red";
+  ctx.fillStyle = color;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 5;
+
+  poseDetection.util
+    .getAdjacentPairs(poseDetection.SupportedModels.MoveNet)
+    .forEach(([i, j]) => {
+      const kp1 = keypoints[i];
+      const kp2 = keypoints[j];
+
+      // If score is null, just show the keypoint.
+      const score1 = kp1.score != null ? kp1.score : 1;
+      const score2 = kp2.score != null ? kp2.score : 1;
+      const scoreThreshold = 0.4;
+
+      if (score1 >= scoreThreshold && score2 >= scoreThreshold) {
+        ctx.beginPath();
+        ctx.moveTo(kp1.x, kp1.y);
+        ctx.lineTo(kp2.x, kp2.y);
+        ctx.stroke();
+      }
+    });
   // Clear the canvas
   //ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 
   // Draw lines between connected keypoints
-  const connectedKeypoints = [
-    [0, 1],
-    [1, 3],
-    [3, 5],
-    [5, 7],
-    [0, 2],
-    [2, 4],
-    [4, 6],
-    [6, 8], // Upper body
-    [9, 10],
-    [11, 12],
-    [11, 13],
-    [13, 15],
-    [15, 17],
-    [10, 12],
-    [12, 14],
-    [14, 16],
-    [16, 18], // Lower body
-    [5, 11],
-    [6, 12], // Connect upper and lower body
-  ];
+  // const connectedKeypoints = [
+  //   [0, 1],
+  //   [1, 3],
+  //   [3, 5],
+  //   [5, 7],
+  //   [0, 2],
+  //   [2, 4],
+  //   [4, 6],
+  //   [6, 8], // Upper body
+  //   [9, 10],
+  //   [11, 12],
+  //   [11, 13],
+  //   [13, 15],
+  //   [15, 17],
+  //   [10, 12],
+  //   [12, 14],
+  //   [14, 16],
+  //   [16, 18], // Lower body
+  //   [5, 11],
+  //   [6, 12], // Connect upper and lower body
+  // ];
 
-  connectedKeypoints.forEach(([indexA, indexB]) => {
-    console.log("indexB", indexB);
-    const keypointA = keypoints[indexA];
-    const keypointB = keypoints[indexB];
-    console.log(keypointA);
-    console.log(keypointB);
-    // Draw the line if both keypoints have confidence above the threshold
-    if (keypointA && keypointB) {
-      if (
-        keypointA.score >= minConfidence &&
-        keypointB.score >= minConfidence
-      ) {
-        ctx.beginPath();
-        ctx.moveTo(keypointA.x, keypointA.y);
-        ctx.lineTo(keypointB.x, keypointB.y);
-        ctx.strokeStyle = "red"; // You can set any color you like
-        ctx.lineWidth = 2;
-        ctx.stroke();
-      }
-    }
-  });
+  // connectedKeypoints.forEach(([indexA, indexB]) => {
+  //   console.log("indexB", indexB);
+  //   const keypointA = keypoints[indexA];
+  //   const keypointB = keypoints[indexB];
+  //   console.log(keypointA);
+  //   console.log(keypointB);
+  //   // Draw the line if both keypoints have confidence above the threshold
+  //   if (keypointA && keypointB) {
+  //     if (
+  //       keypointA.score >= minConfidence &&
+  //       keypointB.score >= minConfidence
+  //     ) {
+  //       ctx.beginPath();
+  //       ctx.moveTo(keypointA.x, keypointA.y);
+  //       ctx.lineTo(keypointB.x, keypointB.y);
+  //       ctx.strokeStyle = "red"; // You can set any color you like
+  //       ctx.lineWidth = 2;
+  //       ctx.stroke();
+  //     }
+  //   }
+  // });
 
-  // Draw circles at each keypoint
-  keypoints.forEach((keypoint) => {
-    if (keypoint.score >= minConfidence) {
-      ctx.beginPath();
-      ctx.arc(keypoint.x, keypoint.y, 4, 0, 2 * Math.PI);
-      ctx.fillStyle = "blue"; // You can set any color you like
-      ctx.fill();
-    }
-  });
+  // // Draw circles at each keypoint
+  // keypoints.forEach((keypoint) => {
+  //   if (keypoint.score >= minConfidence) {
+  //     ctx.beginPath();
+  //     ctx.arc(keypoint.x, keypoint.y, 4, 0, 2 * Math.PI);
+  //     ctx.fillStyle = "blue"; // You can set any color you like
+  //     ctx.fill();
+  //   }
+  // });
 }

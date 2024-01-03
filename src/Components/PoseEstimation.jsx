@@ -4,20 +4,12 @@ import * as tf from "@tensorflow/tfjs-core";
 import "@tensorflow/tfjs-backend-webgl";
 tf.setBackend("webgpu").then(() => main());
 import Webcam from "react-webcam";
-import {
-  drawPoint,
-  drawSegment,
-  POINTS,
-  keypointConnections,
-  drawSkeleton,
-  drawKeypoints,
-} from "../Utils/draw";
+import { drawSkeleton, drawKeypoints } from "../Utils/draw";
 
 const PoseEstimation = () => {
   const webcamRef = useRef(null);
   const canvasRef = useRef(null);
   const [pose, setPose] = useState(null);
-  let skeletonColor = "rgb(255,255,255)";
 
   useEffect(() => {
     const runPosenet = async () => {
@@ -76,14 +68,14 @@ const PoseEstimation = () => {
       const mirroredKeypoints = keypoints.map((keypoint) => {
         const mirroredX = isMirrored ? videoWidth - keypoint.x : keypoint.x;
         const mirroredY = keypoint.y;
-
         // Create a new object with mirrored coordinates
         return { x: mirroredX, y: mirroredY, score: keypoint.score };
       });
 
       // Draw keypoints using adjusted x and y
       //drawKeypoints(mirroredKeypoints, 0.4, "red", ctx);
-      drawSkeleton(mirroredKeypoints, 0.4, ctx);
+      drawKeypoints(mirroredKeypoints, ctx);
+      drawSkeleton(mirroredKeypoints, ctx);
 
       // const keypoints = pose.keypoints;
       // let input = keypoints.map((keypoint) => {
