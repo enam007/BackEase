@@ -1,74 +1,74 @@
 import * as poseDetection from "@tensorflow-models/pose-detection";
-export const POINTS = {
-  NOSE: 0,
-  LEFT_EYE: 1,
-  RIGHT_EYE: 2,
-  LEFT_EAR: 3,
-  RIGHT_EAR: 4,
-  LEFT_SHOULDER: 5,
-  RIGHT_SHOULDER: 6,
-  LEFT_ELBOW: 7,
-  RIGHT_ELBOW: 8,
-  LEFT_WRIST: 9,
-  RIGHT_WRIST: 10,
-  LEFT_HIP: 11,
-  RIGHT_HIP: 12,
-  LEFT_KNEE: 13,
-  RIGHT_KNEE: 14,
-  LEFT_ANKLE: 15,
-  RIGHT_ANKLE: 16,
-};
-
-export const keypointConnections = {
-  nose: ["left_ear", "right_ear"],
-  left_ear: ["left_shoulder"],
-  right_ear: ["right_shoulder"],
-  left_shoulder: ["right_shoulder", "left_elbow", "left_hip"],
-  right_shoulder: ["right_elbow", "right_hip"],
-  left_elbow: ["left_wrist"],
-  right_elbow: ["right_wrist"],
-  left_hip: ["left_knee", "right_hip"],
-  right_hip: ["right_knee"],
-  left_knee: ["left_ankle"],
-  right_knee: ["right_ankle"],
-};
-export function drawSegment(ctx, [mx, my], [tx, ty], color) {
-  ctx.beginPath();
-  ctx.moveTo(mx, my);
-  ctx.lineTo(tx, ty);
-  ctx.lineWidth = 5;
-  ctx.strokeStyle = color;
-  ctx.stroke();
-}
-
-export function drawPoint(ctx, x, y, r, color) {
-  ctx.beginPath();
-  ctx.arc(x, y, r, 0, 2 * Math.PI);
-  ctx.fillStyle = color;
-  ctx.fill();
-}
-
-export function drawKeypoints(keypoint, ctx) {
+export const SCORE_THRESHOLD = 0.5;
+function drawKeypoint(keypoint, ctx) {
+  // If score is null, just show the keypoint.
   const score = keypoint.score != null ? keypoint.score : 1;
-  const scoreThreshold = 0.4;
+  const scoreThreshold = SCORE_THRESHOLD;
 
   if (score >= scoreThreshold) {
     const circle = new Path2D();
     circle.arc(keypoint.x, keypoint.y, 2, 0, 2 * Math.PI);
-    ctx.fillStyle = "red";
     ctx.fill(circle);
     ctx.stroke(circle);
   }
 }
+export function drawKeypoints(keypoint, ctx, color) {
+  const keypointInd = poseDetection.util.getKeypointIndexBySide(
+    poseDetection.SupportedModels.MoveNet
+  );
+  ctx.fillStyle = color;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
 
-export function drawSkeleton(keypoints, ctx) {
-  const color = "red";
+  for (const i of keypointInd.middle) {
+    drawKeypoint(keypoint[i], ctx);
+  }
+
+  ctx.fillStyle = "Green";
+  for (const i of keypointInd.left) {
+    drawKeypoint(keypoint[i], ctx);
+  }
+
+  ctx.fillStyle = "Orange";
+  for (const i of keypointInd.right) {
+    drawKeypoint(keypoint[i], ctx);
+  }
+}
+
+export function drawSkeleton(keypoints, ctx, color) {
+  //const color = "red";
   ctx.fillStyle = color;
   ctx.strokeStyle = color;
   ctx.lineWidth = 5;
-
+  const pointsR = getPoints(
+    keypoints,
+    "right_shoulder",
+    "right_elbow",
+    "right_wrist"
+  );
+  const pointsL = getPoints(
+    keypoints,
+    "left_shoulder",
+    "left_elbow",
+    "left_wrist"
+  );
+  //console.log(points);
+  const angleR = calculateAngle(
+    pointsR,
+    "right_shoulder",
+    "right_elbow",
+    "right_wrist"
+  );
+  const angleL = calculateAngle(
+    pointsL,
+    "left_shoulder",
+    "left_elbow",
+    "left_wrist"
+  );
+  //console.log(angle);
   poseDetection.util
     .getAdjacentPairs(poseDetection.SupportedModels.MoveNet)
+
     .forEach(([i, j]) => {
       const kp1 = keypoints[i];
       const kp2 = keypoints[j];
@@ -76,70 +76,109 @@ export function drawSkeleton(keypoints, ctx) {
       // If score is null, just show the keypoint.
       const score1 = kp1.score != null ? kp1.score : 1;
       const score2 = kp2.score != null ? kp2.score : 1;
-      const scoreThreshold = 0.4;
+      const scoreThreshold = SCORE_THRESHOLD;
 
       if (score1 >= scoreThreshold && score2 >= scoreThreshold) {
+        if (kp1.name === "right_elbow") {
+          writeTextOnCanvas(kp1.x, kp1.y, angleR, ctx, "yellow");
+        }
+        if (kp1.name === "left_elbow") {
+          writeTextOnCanvas(kp1.x, kp1.y, angleL, ctx, "red");
+        }
+
         ctx.beginPath();
         ctx.moveTo(kp1.x, kp1.y);
         ctx.lineTo(kp2.x, kp2.y);
         ctx.stroke();
       }
     });
-  // Clear the canvas
-  //ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+}
 
-  // Draw lines between connected keypoints
-  // const connectedKeypoints = [
-  //   [0, 1],
-  //   [1, 3],
-  //   [3, 5],
-  //   [5, 7],
-  //   [0, 2],
-  //   [2, 4],
-  //   [4, 6],
-  //   [6, 8], // Upper body
-  //   [9, 10],
-  //   [11, 12],
-  //   [11, 13],
-  //   [13, 15],
-  //   [15, 17],
-  //   [10, 12],
-  //   [12, 14],
-  //   [14, 16],
-  //   [16, 18], // Lower body
-  //   [5, 11],
-  //   [6, 12], // Connect upper and lower body
-  // ];
+export const drawPose = (pose, videoRef, color, canvasRef) => {
+  const canvas = canvasRef.current;
+  const video = videoRef.current?.video;
 
-  // connectedKeypoints.forEach(([indexA, indexB]) => {
-  //   console.log("indexB", indexB);
-  //   const keypointA = keypoints[indexA];
-  //   const keypointB = keypoints[indexB];
-  //   console.log(keypointA);
-  //   console.log(keypointB);
-  //   // Draw the line if both keypoints have confidence above the threshold
-  //   if (keypointA && keypointB) {
-  //     if (
-  //       keypointA.score >= minConfidence &&
-  //       keypointB.score >= minConfidence
-  //     ) {
-  //       ctx.beginPath();
-  //       ctx.moveTo(keypointA.x, keypointA.y);
-  //       ctx.lineTo(keypointB.x, keypointB.y);
-  //       ctx.strokeStyle = "red"; // You can set any color you like
-  //       ctx.lineWidth = 2;
-  //       ctx.stroke();
-  //     }
-  //   }
-  // });
+  if (!canvas || !pose || !pose.keypoints || !video) {
+    return;
+  }
 
-  // // Draw circles at each keypoint
-  // keypoints.forEach((keypoint) => {
-  //   if (keypoint.score >= minConfidence) {
-  //     ctx.beginPath();
-  //     ctx.arc(keypoint.x, keypoint.y, 4, 0, 2 * Math.PI);
-  //     ctx.fillStyle = "blue"; // You can set any color you like
-  //     ctx.fill();
-  //   }
-  // });
+  const videoWidth = video.videoWidth;
+  const videoHeight = video.videoHeight;
+  canvas.width = videoWidth;
+  canvas.height = videoHeight;
+
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const keypoints = pose.keypoints;
+  const isMirrored = true; // Set to true if the video is mirrored
+
+  const mirroredKeypoints = keypoints.map((keypoint) => ({
+    x: isMirrored ? videoWidth - keypoint.x : keypoint.x,
+    y: keypoint.y,
+    score: keypoint.score,
+    name: keypoint.name,
+  }));
+
+  drawKeypoints(mirroredKeypoints, ctx, "yellow");
+  drawSkeleton(mirroredKeypoints, ctx, color);
+};
+
+export const getPoints = (keypoints, jointA, jointB, jointC) => {
+  const result = {};
+  //console.log(keypoints);
+  keypoints.forEach((keypoint) => {
+    const { name, score } = keypoint;
+    if (score >= SCORE_THRESHOLD) {
+      if (name === jointA || name === jointB || name === jointC) {
+        result[name] = keypoint;
+      }
+    }
+  });
+
+  return result;
+};
+
+// draw.js
+
+function calculateAngle(points, pointA, pointB, pointC) {
+  if (!points || !points[pointA] || !points[pointB] || !points[pointC]) {
+    console.error("Invalid points or point names");
+    return NaN; // or any other value to indicate an error
+  }
+  // Extract coordinates of three points (A, B, C)
+  const { x: ax, y: ay } = points[pointA];
+  const { x: bx, y: by } = points[pointB];
+  const { x: cx, y: cy } = points[pointC];
+
+  // Calculate vectors AB and BC
+  const AB = { x: bx - ax, y: by - ay };
+  const BC = { x: cx - bx, y: cy - by };
+
+  // Calculate dot product of AB and BC
+  const dotProduct = AB.x * BC.x + AB.y * BC.y;
+
+  // Calculate magnitudes of AB and BC
+  const magnitudeAB = Math.sqrt(AB.x * AB.x + AB.y * AB.y);
+  const magnitudeBC = Math.sqrt(BC.x * BC.x + BC.y * BC.y);
+
+  // Calculate the cosine of the angle
+  const cosAngle = dotProduct / (magnitudeAB * magnitudeBC);
+
+  // Calculate the angle in radians
+  const angleRad = Math.acos(cosAngle);
+
+  // Convert the angle to degrees
+  const angleDeg = Math.round(angleRad * (180 / Math.PI));
+
+  return angleDeg;
+}
+
+function writeTextOnCanvas(x, y, text, ctx, color) {
+  // Set font properties
+  ctx.font = "130px Arial";
+  ctx.fillStyle = color;
+
+  // Draw the text on the canvas
+  ctx.fillText(text, x, y);
 }
